@@ -97,3 +97,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+async def send_test():
+    await bot.send_message(CHANNEL_ID, "✅ Бот запущен! Автопостинг работает.")
+    logging.info("Тестовое сообщение отправлено.")
