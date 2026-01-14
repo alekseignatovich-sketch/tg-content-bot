@@ -22,6 +22,7 @@ DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
 FEEDS = [
     {"name": "Telegram Blog", "url": "https://telegram.org/blog/rss", "tag": "📢 Telegram"},
+    {"name": "GitHub — aiogram", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🔧 Обновления"},
     {"name": "Habr — Telegram", "url": "https://habr.com/ru/hub/telegram/rss/", "tag": "🤖 Боты"},
     {"name": "The Verge — AI", "url": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml", "tag": "🧠 AI"},
 ]
