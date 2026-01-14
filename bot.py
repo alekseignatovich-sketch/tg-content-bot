@@ -90,6 +90,7 @@ async def main():
     scheduler = AsyncIOScheduler()
     interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 6))
     scheduler.add_job(fetch_and_post, 'interval', hours=interval_hours)
+    asyncio.create_task(fetch_and_post())
     scheduler.start()
     logging.info(f"✅ Бот запущен. Публикация каждые {interval_hours} часов.")
     await dp.start_polling(bot)
