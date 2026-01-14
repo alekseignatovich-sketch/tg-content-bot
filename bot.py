@@ -21,10 +21,17 @@ dp = Dispatcher()
 DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
 FEEDS = [
+    # Telegram
     {"name": "Telegram Blog", "url": "https://telegram.org/blog/rss", "tag": "📢 Telegram"},
-    {"name": "GitHub — aiogram", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🔧 Обновления"},
-    {"name": "Habr — Telegram", "url": "https://habr.com/ru/hub/telegram/rss/", "tag": "🤖 Боты"},
-    {"name": "The Verge — AI", "url": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml", "tag": "🧠 AI"},
+    {"name": "Telegram Tips", "url": "https://telegramtips.com/feed/", "tag": "💡 Tips"},
+    
+    # Боты / Разработка
+    {"name": "aiogram Releases", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🤖 aiogram"},
+    {"name": "GitHub Python Trending", "url": "https://github.com/trending/python?since=daily.atom", "tag": "🐍 Python"},
+    
+    # ИИ
+    {"name": "Hacker News — AI", "url": "https://hnrss.org/newest?q=artificial+intelligence", "tag": "🧠 AI News"},
+    {"name": "Towards Data Science", "url": "https://medium.com/feed/towards-data-science", "tag": "📊 Data Science"},
 ]
 
 def is_valid_image_url(url):
