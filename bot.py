@@ -54,4 +54,51 @@ async def send_post(bot, channel_id, caption, image_url=None):
         await bot.send_message(chat_id=channel_id, text=caption, parse_mode="HTML")
 
 async def fetch_and_post():
-    for feed
+    for feed in FEEDS:
+        try:
+            logging.info(f"Проверка: {feed['name']}")
+            parsed = feedparser.parse(feed["url"])
+            if parsed.entries:
+                entry = parsed.entries[0]
+                title = entry.get("title", "Без заголовка")
+                link = entry.get("link", "")
+                caption = (
+                    f'{feed["tag"]}\n\n'
+                    f'<b>{title}</b>\n\n'
+                    f'🔗 <a href="{link}">Читать оригинал</a>'
+                )
+
+                image_url = None
+                if hasattr(entry, 'enclosures') and entry.enclosures:
+                    for enc in entry.enclosures:
+                        url = getattr(enc, 'href', None) or (enc.get('href') if isinstance(enc, dict) else None)
+                        if url and is_valid_image_url(url):
+                            image_url = url
+                            break
+                if not image_url and hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                    image_url = entry.media_thumbnail[0].get('url')
+                if not image_url:
+                    content = getattr(entry, 'summary', '') + getattr(entry, 'content', [{}])[0].get('value', '')
+                    match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content)
+                    if match:
+                        image_url = match.group(1)
+
+                await send_post(bot, CHANNEL_ID, caption, image_url)
+                logging.info(f"✅ Опубликовано: {title}")
+                await asyncio.sleep(1)
+        except Exception as e:
+            logging.error(f"Ошибка при обработке {feed['name']}: {e}")
+
+async def main():
+    # Сначала отправим тестовое сообщение
+    await send_test_message()
+    
+    scheduler = AsyncIOScheduler()
+    interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 6))
+    scheduler.add_job(fetch_and_post, 'interval', hours=interval_hours)
+    scheduler.start()
+    logging.info(f"✅ Бот запущен. Публикация каждые {interval_hours} часов.")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
