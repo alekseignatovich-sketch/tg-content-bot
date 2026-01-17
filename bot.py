@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import logging
 import re
+import json
 from urllib.parse import urlparse
 
 logging.basicConfig(level=logging.INFO)
@@ -18,21 +19,21 @@ if not BOT_TOKEN or not CHANNEL_ID:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
+# GIF по умолчанию: робот / ИИ / код (нейтральный, без текста)
+DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"  # Telegram-анимация
 
+# Только русскоязычные источники по теме
 FEEDS = [
-    # Telegram
-    {"name": "Telegram Blog", "url": "https://telegram.org/blog/rss", "tag": "📢 Telegram"},
-    {"name": "Telegram Tips", "url": "https://telegramtips.com/feed/", "tag": "💡 Tips"},
-    
-    # Боты / Разработка
-    {"name": "aiogram Releases", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🤖 aiogram"},
-    {"name": "GitHub Python Trending", "url": "https://github.com/trending/python?since=daily.atom", "tag": "🐍 Python"},
-    
-    # ИИ
-    {"name": "Hacker News — AI", "url": "https://hnrss.org/newest?q=artificial+intelligence", "tag": "🧠 AI News"},
-    {"name": "Towards Data Science", "url": "https://medium.com/feed/towards-data-science", "tag": "📊 Data Science"},
+    {"name": "Habr — Telegram", "url": "https://habr.com/ru/hub/telegram/rss/", "tag": "🤖 Telegram"},
+    {"name": "Habr — Искусственный интеллект", "url": "https://habr.com/ru/hub/artificial_intelligence/rss/", "tag": "🧠 ИИ"},
+    {"name": "Habr — Роботы", "url": "https://habr.com/ru/hub/robotics/rss/", "tag": "🦾 Роботы"},
+    {"name": "Habr — Python", "url": "https://habr.com/ru/hub/python/rss/", "tag": "🐍 Python"},
+    {"name": "VC.ru — Искусственный интеллект", "url": "https://vc.ru/ai/rss", "tag": "📈 VC.AI"},
+    {"name": "Хабр — Чат-боты", "url": "https://habr.com/ru/hub/chatbots/rss/", "tag": "💬 Чат-боты"},
 ]
+
+# Файл для защиты от дублей
+SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
 
 def is_valid_image_url(url):
     if not url:
@@ -40,13 +41,31 @@ def is_valid_image_url(url):
     parsed = urlparse(url)
     return bool(parsed.netloc) and bool(parsed.scheme) and url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))
 
-async def send_test_message():
-    """Отправляет тестовое сообщение при запуске"""
+def load_seen_posts():
+    if os.path.exists(SEEN_POSTS_FILE):
+        try:
+            with open(SEEN_POSTS_FILE, "r") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_seen_post(post_id):
+    seen = load_seen_posts()
+    seen.add(post_id)
+    seen = set(list(seen)[-100:])  # последние 100 ссылок
     try:
-        await bot.send_message(CHANNEL_ID, "✅ ТЕСТ: бот запущен и может публиковать в канал!")
-        logging.info("✅ Тестовое сообщение успешно отправлено.")
+        with open(SEEN_POSTS_FILE, "w") as f:
+            json.dump(list(seen), f)
+    except:
+        pass
+
+async def send_test_message():
+    try:
+        await bot.send_message(CHANNEL_ID, "✅ Тест: бот по русскому ИИ и ботам запущен!")
+        logging.info("✅ Тестовое сообщение отправлено.")
     except Exception as e:
-        logging.error(f"❌ Ошибка отправки тестового сообщения: {e}")
+        logging.error(f"❌ Ошибка теста: {e}")
 
 async def send_post(bot, channel_id, caption, image_url=None):
     try:
@@ -58,18 +77,28 @@ async def send_post(bot, channel_id, caption, image_url=None):
         else:
             await bot.send_animation(chat_id=channel_id, animation=DEFAULT_GIF_URL, caption=caption, parse_mode="HTML")
     except Exception as e:
-        logging.error(f"Ошибка отправки поста: {e}")
+        logging.error(f"Ошибка отправки: {e}")
         await bot.send_message(chat_id=channel_id, text=caption, parse_mode="HTML")
 
 async def fetch_and_post():
+    logging.info("🔄 Проверка русских источников по ИИ и ботам...")
+    seen_posts = load_seen_posts()
     for feed in FEEDS:
         try:
-            logging.info(f"Проверка: {feed['name']}")
+            logging.info(f"Источник: {feed['name']}")
             parsed = feedparser.parse(feed["url"])
             if parsed.entries:
                 entry = parsed.entries[0]
-                title = entry.get("title", "Без заголовка")
-                link = entry.get("link", "")
+                title = entry.get("title", "Без заголовка").strip()
+                link = entry.get("link", "").strip()
+
+                if not link or not title:
+                    continue
+
+                if link in seen_posts:
+                    logging.info(f"⏭️ Уже опубликовано: {title}")
+                    continue
+
                 caption = (
                     f'{feed["tag"]}\n\n'
                     f'<b>{title}</b>\n\n'
@@ -93,19 +122,22 @@ async def fetch_and_post():
 
                 await send_post(bot, CHANNEL_ID, caption, image_url)
                 logging.info(f"✅ Опубликовано: {title}")
+                save_seen_post(link)
                 await asyncio.sleep(1)
+            else:
+                logging.info(f"ℹ️ Нет записей: {feed['name']}")
         except Exception as e:
-            logging.error(f"Ошибка при обработке {feed['name']}: {e}")
+            logging.error(f"Ошибка {feed['name']}: {e}")
+    logging.info("🔚 Проверка завершена.")
 
 async def main():
-    # Сначала отправим тестовое сообщение
     await send_test_message()
-    
     scheduler = AsyncIOScheduler()
+    # По умолчанию — 6 часов (можно переопределить через POST_INTERVAL_HOURS)
     interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 6))
     scheduler.add_job(fetch_and_post, 'interval', hours=interval_hours)
     scheduler.start()
-    logging.info(f"✅ Бот запущен. Публикация каждые {interval_hours} часов.")
+    logging.info(f"✅ Бот 'Русский ИИ и Боты' запущен. Интервал: {interval_hours} ч.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
