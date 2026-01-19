@@ -21,8 +21,10 @@ if not BOT_TOKEN or not CHANNEL_ID:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# GIF по умолчанию
 DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
+# Источники (только русские)
 FEEDS = [
     {"name": "Хабр — ИИ", "url": "https://habr.com/ru/rss/articles/?q=искусственный+интеллект", "tag": "🧠 Хабр ИИ"},
     {"name": "Хабр — Telegram", "url": "https://habr.com/ru/rss/articles/?q=telegram", "tag": "🤖 Хабр TG"},
@@ -34,7 +36,7 @@ FEEDS = [
 SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
 
 def get_post_id(title, link):
-    """Генерирует уникальный ID на основе заголовка и ссылки"""
+    """Уникальный ID на основе заголовка и ссылки"""
     combined = (title.strip() + "|" + link.strip()).encode('utf-8')
     return hashlib.sha256(combined).hexdigest()
 
@@ -56,7 +58,6 @@ def load_seen_posts():
 def save_seen_post(post_id):
     seen = load_seen_posts()
     seen.add(post_id)
-    # Ограничиваем размер
     if len(seen) > 200:
         seen = set(list(seen)[-150:])
     try:
@@ -85,93 +86,106 @@ async def send_post(bot, channel_id, caption, image_url=None):
         logging.error(f"Ошибка отправки: {e}")
         await bot.send_message(chat_id=channel_id, text=caption, parse_mode="HTML")
 
-async def fetch_and_post():
-    logging.info("🔄 Проверка источников...")
-    seen_posts = load_seen_posts()
-    published_any = False
+async def publish_fallback(seen_posts):
+    fallback_posts = [
+        "💡 <b>Знаете ли вы?</b>\nTelegram Bot API поддерживает платежи, игры и даже видеозвонки!",
+        "🧠 <b>Факт об ИИ:</b>\nПервый чат-бот ELIZA был создан в 1966 году и имитировал психотерапевта.",
+        "🤖 <b>Совет разработчику:</b>\nВсегда используйте Webhook вместо polling для продакшена!",
+        "🐍 <b>Python-лайфхак:</b>\nБиблиотека `aiogram` позволяет создать бота за 5 строк кода.",
+        "🚀 <b>Идея для бота:</b>\nСоздайте бота, который генерирует изображения по тексту через DALL·E прямо в чате!",
+        "🔧 <b>Инструмент:</b>\nGitHub Actions позволяет автоматически деплоить бота при каждом коммите.",
+        "💬 <b>Best practice:</b>\nВсегда добавляйте кнопку «Поддержка» в меню бота.",
+        "📊 <b>Статистика:</b>\nБолее 80% Telegram-ботов используют Python.",
+    ]
 
+    available = [post for post in fallback_posts if post not in seen_posts]
+    if available:
+        fallback = random.choice(available)
+        await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
+        logging.info("📤 Опубликован резервный пост")
+        save_seen_post(fallback)
+    else:
+        seen_clean = {item for item in seen_posts if len(item) == 64}
+        try:
+            with open(SEEN_POSTS_FILE, "w") as f:
+                json.dump(list(seen_clean), f)
+        except:
+            pass
+        fallback = fallback_posts[0]
+        await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
+        logging.info("🔄 Резервные посты исчерпаны — сброс и повтор")
+
+async def fetch_and_post():
+    logging.info("🔄 Сбор всех записей со всех источников...")
+    seen_posts = load_seen_posts()
+    all_entries = []
+
+    # Сбор всех записей
     for feed in FEEDS:
         try:
             logging.info(f"Источник: {feed['name']}")
             parsed = feedparser.parse(feed["url"])
             logging.info(f"📥 Получено записей: {len(parsed.entries)}")
-            if parsed.entries:
-                for entry in parsed.entries[:3]:  # проверяем до 3 свежих
-                    title = entry.get("title", "Без заголовка").strip()
-                    link = entry.get("link", "").strip()
-
-                    if not link or not title:
-                        continue
-
+            for entry in parsed.entries[:5]:
+                title = entry.get("title", "Без заголовка").strip()
+                link = entry.get("link", "").strip()
+                if title and link:
                     post_id = get_post_id(title, link)
-
-                    if post_id in seen_posts:
-                        logging.info(f"⏭️ Уже опубликовано: {title}")
-                        continue
-
-                    caption = (
-                        f'{feed["tag"]}\n\n'
-                        f'<b>{title}</b>\n\n'
-                        f'🔗 <a href="{link}">Читать оригинал</a>'
-                    )
-
-                    image_url = None
-                    if hasattr(entry, 'enclosures') and entry.enclosures:
-                        for enc in entry.enclosures:
-                            url = getattr(enc, 'href', None) or (enc.get('href') if isinstance(enc, dict) else None)
-                            if url and is_valid_image_url(url):
-                                image_url = url
-                                break
-                    if not image_url and hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-                        image_url = entry.media_thumbnail[0].get('url')
-                    if not image_url:
-                        content = getattr(entry, 'summary', '') + getattr(entry, 'content', [{}])[0].get('value', '')
-                        match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content)
-                        if match:
-                            image_url = match.group(1)
-
-                    await send_post(bot, CHANNEL_ID, caption, image_url)
-                    logging.info(f"✅ Опубликовано: {title}")
-                    save_seen_post(post_id)
-                    published_any = True
-                    await asyncio.sleep(1)
-                    break  # публикуем только 1 пост за источник за раз
-            else:
-                logging.info(f"ℹ️ Нет записей: {feed['name']}")
+                    all_entries.append({
+                        "title": title,
+                        "link": link,
+                        "post_id": post_id,
+                        "feed_tag": feed["tag"],
+                        "entry": entry
+                    })
         except Exception as e:
-            logging.error(f"Ошибка {feed['name']}: {e}")
+            logging.error(f"Ошибка при сборе {feed['name']}: {e}")
 
-    # Резервный контент
-    if not published_any:
-        fallback_posts = [
-            "💡 <b>Знаете ли вы?</b>\nTelegram Bot API поддерживает платежи, игры и даже видеозвонки!",
-            "🧠 <b>Факт об ИИ:</b>\nПервый чат-бот ELIZA был создан в 1966 году и имитировал психотерапевта.",
-            "🤖 <b>Совет разработчику:</b>\nВсегда используйте Webhook вместо polling для продакшена!",
-            "🐍 <b>Python-лайфхак:</b>\nБиблиотека `aiogram` позволяет создать бота за 5 строк кода.",
-            "🚀 <b>Идея для бота:</b>\nСоздайте бота, который генерирует изображения по тексту через DALL·E прямо в чате!",
-            "🔧 <b>Инструмент:</b>\nGitHub Actions позволяет автоматически деплоить бота при каждом коммите.",
-            "💬 <b>Best practice:</b>\nВсегда добавляйте кнопку «Поддержка» в меню бота.",
-            "📊 <b>Статистика:</b>\nБолее 80% Telegram-ботов используют Python.",
-        ]
+    # Фильтрация новых
+    new_entries = [e for e in all_entries if e["post_id"] not in seen_posts]
 
-        available_fallbacks = [post for post in fallback_posts if post not in seen_posts]
-        if available_fallbacks:
-            fallback = random.choice(available_fallbacks)
-            await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
-            logging.info("📤 Опубликован новый резервный пост")
-            save_seen_post(fallback)
-        else:
-            seen_clean = {item for item in seen_posts if len(item) == 64}  # оставляем только хэши
-            try:
-                with open(SEEN_POSTS_FILE, "w") as f:
-                    json.dump(list(seen_clean), f)
-            except:
-                pass
-            fallback = fallback_posts[0]
-            await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
-            logging.info("🔄 Резервные посты исчерпаны — сброс и повтор")
+    if not new_entries:
+        logging.info("ℹ️ Нет новых записей. Публикуем резервный контент.")
+        await publish_fallback(seen_posts)
+        return
 
-    logging.info("🔚 Проверка завершена.")
+    # Публикация (макс. 2 поста за раз)
+    published_count = 0
+    max_posts = 2
+
+    for entry in new_entries:
+        if published_count >= max_posts:
+            break
+
+        caption = (
+            f'{entry["feed_tag"]}\n\n'
+            f'<b>{entry["title"]}</b>\n\n'
+            f'🔗 <a href="{entry["link"]}">Читать оригинал</a>'
+        )
+
+        image_url = None
+        e = entry["entry"]
+        if hasattr(e, 'enclosures') and e.enclosures:
+            for enc in e.enclosures:
+                url = getattr(enc, 'href', None) or (enc.get('href') if isinstance(enc, dict) else None)
+                if url and is_valid_image_url(url):
+                    image_url = url
+                    break
+        if not image_url and hasattr(e, 'media_thumbnail') and e.media_thumbnail:
+            image_url = e.media_thumbnail[0].get('url')
+        if not image_url:
+            content = getattr(e, 'summary', '') + getattr(e, 'content', [{}])[0].get('value', '')
+            match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content)
+            if match:
+                image_url = match.group(1)
+
+        await send_post(bot, CHANNEL_ID, caption, image_url)
+        logging.info(f"✅ Опубликовано: {entry['title']}")
+        save_seen_post(entry["post_id"])
+        published_count += 1
+        await asyncio.sleep(1)
+
+    logging.info(f"🔚 Опубликовано {published_count} новых постов.")
 
 async def main():
     await send_test_message()
