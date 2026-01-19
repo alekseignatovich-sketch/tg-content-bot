@@ -19,10 +19,8 @@ if not BOT_TOKEN or not CHANNEL_ID:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# GIF по умолчанию: робот / ИИ / код (нейтральный, без текста)
-DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"  # Telegram-анимация
+DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
-# Только русскоязычные источники по теме
 FEEDS = [
     {"name": "Habr — Telegram", "url": "https://habr.com/ru/hub/telegram/rss/", "tag": "🤖 Telegram"},
     {"name": "Habr — Искусственный интеллект", "url": "https://habr.com/ru/hub/artificial_intelligence/rss/", "tag": "🧠 ИИ"},
@@ -32,7 +30,6 @@ FEEDS = [
     {"name": "Хабр — Чат-боты", "url": "https://habr.com/ru/hub/chatbots/rss/", "tag": "💬 Чат-боты"},
 ]
 
-# Файл для защиты от дублей
 SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
 
 def is_valid_image_url(url):
@@ -53,7 +50,7 @@ def load_seen_posts():
 def save_seen_post(post_id):
     seen = load_seen_posts()
     seen.add(post_id)
-    seen = set(list(seen)[-100:])  # последние 100 ссылок
+    seen = set(list(seen)[-100:])
     try:
         with open(SEEN_POSTS_FILE, "w") as f:
             json.dump(list(seen), f)
@@ -87,12 +84,14 @@ async def fetch_and_post():
         try:
             logging.info(f"Источник: {feed['name']}")
             parsed = feedparser.parse(feed["url"])
+            logging.info(f"📥 Получено записей: {len(parsed.entries)}")
             if parsed.entries:
                 entry = parsed.entries[0]
                 title = entry.get("title", "Без заголовка").strip()
                 link = entry.get("link", "").strip()
 
                 if not link or not title:
+                    logging.info(f"⚠️ Пропущено: нет ссылки/заголовка ({feed['name']})")
                     continue
 
                 if link in seen_posts:
@@ -132,8 +131,10 @@ async def fetch_and_post():
 
 async def main():
     await send_test_message()
+    logging.info("🚀 Принудительная публикация при старте...")
+    await fetch_and_post()
+
     scheduler = AsyncIOScheduler()
-    # По умолчанию — 6 часов (можно переопределить через POST_INTERVAL_HOURS)
     interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 6))
     scheduler.add_job(fetch_and_post, 'interval', hours=interval_hours)
     scheduler.start()
