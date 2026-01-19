@@ -22,16 +22,13 @@ dp = Dispatcher()
 DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
 FEEDS = [
-    {"name": "Telegram Bot News (ru)", "url": "https://rsshub.app/telegram/channel/botnews", "tag": "🤖 Боты"},
-    {"name": "AI in Telegram (ru)", "url": "https://rsshub.app/telegram/channel/ai_in_tg", "tag": "🧠 ИИ в TG"},
+{"name": "Хабр — Все статьи (ИИ/Боты)", "url": "https://habr.com/ru/rss/articles/?q=искусственный+интеллект", "tag": "🧠 Хабр ИИ"},
+    {"name": "Хабр — Telegram", "url": "https://habr.com/ru/rss/articles/?q=telegram", "tag": "🤖 Хабр TG"},
+    {"name": "VC.ru — Все технологии", "url": "https://vc.ru/rss", "tag": "📈 VC.ru"},
     
-    # Habr — через RSSHub (обход блокировки)
-    {"name": "Хабр — Telegram", "url": "https://rsshub.app/habr/topic/telegram", "tag": "🛠️ Хабр: Telegram"},
-    {"name": "Хабр — ИИ", "url": "https://rsshub.app/habr/topic/artificial_intelligence", "tag": "📈 Хабр: ИИ"},
-    {"name": "Хабр — Python", "url": "https://rsshub.app/habr/topic/python", "tag": "🐍 Хабр: Python"},
-    
-    # GitHub Trending (ru + en, но по теме)
-    {"name": "GitHub Trending — AI", "url": "https://rsshub.app/github/trending/weekly?language=python&spoken_language_code=ru", "tag": "💻 GitHub AI"},
+    # GitHub Releases (aiogram, python-telegram-bot)
+    {"name": "aiogram — Releases", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🛠️ aiogram"},
+    {"name": "python-telegram-bot — Releases", "url": "https://github.com/python-telegram-bot/python-telegram-bot/releases.atom", "tag": "🧩 PTB"},
 ]
 
 SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
