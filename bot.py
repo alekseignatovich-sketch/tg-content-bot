@@ -22,12 +22,16 @@ dp = Dispatcher()
 DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
 FEEDS = [
-    {"name": "Habr — Telegram", "url": "https://habr.com/ru/hub/telegram/rss/", "tag": "🤖 Telegram"},
-    {"name": "Habr — Искусственный интеллект", "url": "https://habr.com/ru/hub/artificial_intelligence/rss/", "tag": "🧠 ИИ"},
-    {"name": "Habr — Роботы", "url": "https://habr.com/ru/hub/robotics/rss/", "tag": "🦾 Роботы"},
-    {"name": "Habr — Python", "url": "https://habr.com/ru/hub/python/rss/", "tag": "🐍 Python"},
-    {"name": "VC.ru — Искусственный интеллект", "url": "https://vc.ru/ai/rss", "tag": "📈 VC.AI"},
-    {"name": "Хабр — Чат-боты", "url": "https://habr.com/ru/hub/chatbots/rss/", "tag": "💬 Чат-боты"},
+    {"name": "Telegram Bot News (ru)", "url": "https://rsshub.app/telegram/channel/botnews", "tag": "🤖 Боты"},
+    {"name": "AI in Telegram (ru)", "url": "https://rsshub.app/telegram/channel/ai_in_tg", "tag": "🧠 ИИ в TG"},
+    
+    # Habr — через RSSHub (обход блокировки)
+    {"name": "Хабр — Telegram", "url": "https://rsshub.app/habr/topic/telegram", "tag": "🛠️ Хабр: Telegram"},
+    {"name": "Хабр — ИИ", "url": "https://rsshub.app/habr/topic/artificial_intelligence", "tag": "📈 Хабр: ИИ"},
+    {"name": "Хабр — Python", "url": "https://rsshub.app/habr/topic/python", "tag": "🐍 Хабр: Python"},
+    
+    # GitHub Trending (ru + en, но по теме)
+    {"name": "GitHub Trending — AI", "url": "https://rsshub.app/github/trending/weekly?language=python&spoken_language_code=ru", "tag": "💻 GitHub AI"},
 ]
 
 SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
