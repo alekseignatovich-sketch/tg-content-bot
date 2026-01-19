@@ -7,6 +7,7 @@ import logging
 import re
 import json
 from urllib.parse import urlparse
+import random
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,18 +20,19 @@ if not BOT_TOKEN or not CHANNEL_ID:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# GIF по умолчанию: Telegram-анимация
 DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8UQ4l4LhG2c/giphy.gif"
 
+# Надёжные источники (без RSSHub)
 FEEDS = [
-{"name": "Хабр — Все статьи (ИИ/Боты)", "url": "https://habr.com/ru/rss/articles/?q=искусственный+интеллект", "tag": "🧠 Хабр ИИ"},
+    {"name": "Хабр — ИИ", "url": "https://habr.com/ru/rss/articles/?q=искусственный+интеллект", "tag": "🧠 Хабр ИИ"},
     {"name": "Хабр — Telegram", "url": "https://habr.com/ru/rss/articles/?q=telegram", "tag": "🤖 Хабр TG"},
-    {"name": "VC.ru — Все технологии", "url": "https://vc.ru/rss", "tag": "📈 VC.ru"},
-    
-    # GitHub Releases (aiogram, python-telegram-bot)
-    {"name": "aiogram — Releases", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🛠️ aiogram"},
-    {"name": "python-telegram-bot — Releases", "url": "https://github.com/python-telegram-bot/python-telegram-bot/releases.atom", "tag": "🧩 PTB"},
+    {"name": "VC.ru — Технологии", "url": "https://vc.ru/rss", "tag": "📈 VC.ru"},
+    {"name": "aiogram Releases", "url": "https://github.com/aiogram/aiogram/releases.atom", "tag": "🛠️ aiogram"},
+    {"name": "python-telegram-bot Releases", "url": "https://github.com/python-telegram-bot/python-telegram-bot/releases.atom", "tag": "🧩 PTB"},
 ]
 
+# Файл истории
 SEEN_POSTS_FILE = "/tmp/seen_posts_ru_ai.json"
 
 def is_valid_image_url(url):
@@ -51,7 +53,13 @@ def load_seen_posts():
 def save_seen_post(post_id):
     seen = load_seen_posts()
     seen.add(post_id)
-    seen = set(list(seen)[-100:])
+    # Ограничиваем размер
+    if len(seen) > 200:
+        # Оставляем только ссылки (удаляем старые тексты)
+        seen = {item for item in seen if item.startswith("http")}
+        # Добавляем последние 50 текстов обратно (если есть)
+        texts = [item for item in load_seen_posts() if not item.startswith("http")][-50:]
+        seen.update(texts)
     try:
         with open(SEEN_POSTS_FILE, "w") as f:
             json.dump(list(seen), f)
@@ -60,7 +68,7 @@ def save_seen_post(post_id):
 
 async def send_test_message():
     try:
-        await bot.send_message(CHANNEL_ID, "✅ Тест: бот по русскому ИИ и ботам запущен!")
+        await bot.send_message(CHANNEL_ID, "✅ Тест: бот по ИИ и ботам запущен!")
         logging.info("✅ Тестовое сообщение отправлено.")
     except Exception as e:
         logging.error(f"❌ Ошибка теста: {e}")
@@ -79,8 +87,11 @@ async def send_post(bot, channel_id, caption, image_url=None):
         await bot.send_message(chat_id=channel_id, text=caption, parse_mode="HTML")
 
 async def fetch_and_post():
-    logging.info("🔄 Проверка русских источников по ИИ и ботам...")
+    logging.info("🔄 Проверка источников...")
     seen_posts = load_seen_posts()
+    published = False
+
+    # === 1. Основные источники ===
     for feed in FEEDS:
         try:
             logging.info(f"Источник: {feed['name']}")
@@ -92,7 +103,6 @@ async def fetch_and_post():
                 link = entry.get("link", "").strip()
 
                 if not link or not title:
-                    logging.info(f"⚠️ Пропущено: нет ссылки/заголовка ({feed['name']})")
                     continue
 
                 if link in seen_posts:
@@ -123,11 +133,47 @@ async def fetch_and_post():
                 await send_post(bot, CHANNEL_ID, caption, image_url)
                 logging.info(f"✅ Опубликовано: {title}")
                 save_seen_post(link)
+                published = True
                 await asyncio.sleep(1)
             else:
                 logging.info(f"ℹ️ Нет записей: {feed['name']}")
         except Exception as e:
             logging.error(f"Ошибка {feed['name']}: {e}")
+
+    # === 2. Резервный контент (факты) ===
+    if not published:
+        fallback_posts = [
+            "💡 <b>Знаете ли вы?</b>\nTelegram Bot API поддерживает платежи, игры и даже видеозвонки!",
+            "🧠 <b>Факт об ИИ:</b>\nПервый чат-бот ELIZA был создан в 1966 году и имитировал психотерапевта.",
+            "🤖 <b>Совет разработчику:</b>\nВсегда используйте Webhook вместо polling для продакшена!",
+            "🐍 <b>Python-лайфхак:</b>\nБиблиотека `aiogram` позволяет создать бота за 5 строк кода.",
+            "🚀 <b>Идея для бота:</b>\nСоздайте бота, который генерирует изображения по тексту через DALL·E прямо в чате!",
+            "🔧 <b>Инструмент:</b>\nGitHub Actions позволяет автоматически деплоить бота при каждом коммите.",
+            "💬 <b>Best practice:</b>\nВсегда добавляйте кнопку «Поддержка» в меню бота.",
+            "📊 <b>Статистика:</b>\nБолее 80% Telegram-ботов используют Python.",
+        ]
+
+        # Фильтруем уже опубликованные
+        available_fallbacks = [post for post in fallback_posts if post not in seen_posts]
+
+        if available_fallbacks:
+            fallback = random.choice(available_fallbacks)
+            await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
+            logging.info("📤 Опубликован новый резервный пост")
+            save_seen_post(fallback)
+        else:
+            # Сбрасываем только текстовые записи, оставляя ссылки
+            seen_clean = {item for item in seen_posts if item.startswith("http")}
+            try:
+                with open(SEEN_POSTS_FILE, "w") as f:
+                    json.dump(list(seen_clean), f)
+            except:
+                pass
+            # Публикуем первый факт снова
+            fallback = fallback_posts[0]
+            await bot.send_message(CHANNEL_ID, fallback, parse_mode="HTML")
+            logging.info("🔄 Резервные посты исчерпаны — сброс и повтор")
+
     logging.info("🔚 Проверка завершена.")
 
 async def main():
