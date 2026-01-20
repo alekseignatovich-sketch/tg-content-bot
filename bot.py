@@ -193,7 +193,7 @@ async def main():
     await fetch_and_post()
 
     scheduler = AsyncIOScheduler()
-    interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 18))
+    interval_hours = int(os.getenv("POST_INTERVAL_HOURS", 24))
     scheduler.add_job(fetch_and_post, 'interval', hours=interval_hours)
     scheduler.start()
     logging.info(f"✅ Бот 'Русский ИИ и Боты' запущен. Интервал: {interval_hours} ч.")
